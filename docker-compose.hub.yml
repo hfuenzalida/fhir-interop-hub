@@ -1,0 +1,44 @@
+# Hub API + Postgres — stage-like full stack for pipeline smoke / local parity testing.
+# TLS termination belongs on an ingress or reverse proxy in real environments.
+# Usage: docker compose -f docker-compose.hub.yml up --build
+#
+# Set secrets via env file (not committed): copy .env.example, then e.g.
+#   docker compose -f docker-compose.hub.yml --env-file .env.hub up --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hub
+      POSTGRES_PASSWORD: hub
+      POSTGRES_DB: hub
+    ports:
+      - "5432:5432"
+    volumes:
+      - hub_pg_stage:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hub -d hub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  hub-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://hub:hub@postgres:5432/hub
+      HUB_API_HOST: 0.0.0.0
+      HUB_API_PORT: "3000"
+      # Production guardrails: metrics require INTERNAL_METRICS_TOKEN — disabled for local compose.
+      METRICS_ENABLED: "false"
+      # OIDC_ISSUER / JWT keys should come from env file or secrets manager in real deployments.
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  hub_pg_stage:

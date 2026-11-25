@@ -1,0 +1,88 @@
+# Full HTTP smoke: Postgres + migrations + hub-api + Newman.
+# Not run on every push — trigger manually: Actions → "HTTP smoke (Newman)" → Run workflow.
+name: HTTP smoke (Newman)
+
+on:
+  workflow_dispatch:
+
+env:
+  DATABASE_URL: postgresql://hub:hub@localhost:5432/hub
+  HUB_API_PORT: "3000"
+  # Fixed plaintext for ephemeral CI DB only (must match seeded api_key hash).
+  CI_SEED_API_KEY: hub_ci_smoke_static_key_do_not_use_in_production_0123456789abcdef
+
+jobs:
+  newman:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_PASSWORD: hub
+          POSTGRES_USER: hub
+          POSTGRES_DB: hub
+        options: >-
+          --health-cmd "pg_isready -U hub -d hub"
+          --health-interval 4s
+          --health-timeout 5s
+          --health-retries 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build workspaces
+        run: |
+          npm run build -w @fhir-hub/shared
+          npm run build -w @fhir-hub/hub-client
+          npm run build -w @fhir-hub/hub-api
+
+      - name: Apply migrations
+        run: node scripts/apply-all-migrations.mjs
+
+      - name: Seed tenant + deterministic API key
+        run: npm run seed
+
+      - name: Start hub-api (background)
+        working-directory: services/hub-api
+        env:
+          NODE_ENV: test
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          LOG_LEVEL: error
+        run: |
+          node dist/index.js &
+          echo $! > "${RUNNER_TEMP}/hub-api.pid"
+
+      - name: Wait for /health
+        run: |
+          for _ in $(seq 1 90); do
+            if curl -sf "http://127.0.0.1:${{ env.HUB_API_PORT }}/health" >/dev/null; then
+              echo "hub healthy"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "hub did not become healthy in time"
+          exit 1
+
+      - name: Newman
+        run: >
+          npx --yes newman@6 run postman/FHIR-Hub-Partner.postman_collection.json
+          --env-var "baseUrl=http://127.0.0.1:${{ env.HUB_API_PORT }}"
+          --env-var "apiKey=${{ env.CI_SEED_API_KEY }}"
+
+      - name: Stop hub-api
+        if: always()
+        run: |
+          if [ -f "${RUNNER_TEMP}/hub-api.pid" ]; then
+            kill "$(cat "${RUNNER_TEMP}/hub-api.pid")" 2>/dev/null || true
+          fi

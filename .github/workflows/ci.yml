@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build-test-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared + hub-client
+        run: |
+          npm run build -w @fhir-hub/shared
+          npm run build -w @fhir-hub/hub-client
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+  migration-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_PASSWORD: hub
+          POSTGRES_USER: hub
+          POSTGRES_DB: hub
+        options: >-
+          --health-cmd "pg_isready -U hub -d hub"
+          --health-interval 4s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://hub:hub@localhost:5432/hub
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply all SQL migrations
+        run: node scripts/apply-all-migrations.mjs
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_PASSWORD: hub
+          POSTGRES_USER: hub
+          POSTGRES_DB: hub
+        options: >-
+          --health-cmd "pg_isready -U hub -d hub"
+          --health-interval 4s
+          --health-timeout 5s
+          --health-retries 15
+
+    env:
+      DATABASE_URL: postgresql://hub:hub@localhost:5432/hub
+      CI_SEED_API_KEY: hub_ci_smoke_static_key_do_not_use_in_production_0123456789abcdef
+      RUN_INTEGRATION_TESTS: "1"
+      NODE_ENV: test
+      CI: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build for hub-api
+        run: |
+          npm run build -w @fhir-hub/shared
+          npm run build -w @fhir-hub/hub-api
+
+      - name: Apply migrations + seed
+        run: |
+          node scripts/apply-all-migrations.mjs
+          npm run seed
+
+      - name: Integration + perf smoke tests
+        run: npm run test:integration -w @fhir-hub/hub-api

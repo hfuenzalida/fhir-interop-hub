@@ -1,0 +1,139 @@
+{
+  "info": {
+    "name": "FHIR Hub Partner",
+    "description": "Smoke requests for local dev. Import OpenAPI from docs/openapi/hub-partner-api.yaml for richer codegen.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:3000" },
+    { "key": "apiKey", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          }
+        },
+        {
+          "name": "GET /ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/ready"
+          }
+        },
+        {
+          "name": "GET /internal/metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{metricsToken}}",
+                "disabled": true
+              }
+            ],
+            "url": "{{baseUrl}}/internal/metrics"
+          }
+        }
+      ]
+    },
+    {
+      "name": "FHIR",
+      "item": [
+        {
+          "name": "GET CapabilityStatement",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/fhir+json"
+              }
+            ],
+            "url": "{{baseUrl}}/fhir/metadata"
+          }
+        },
+        {
+          "name": "POST Patient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/fhir+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"Patient\",\n  \"identifier\": [{ \"system\": \"http://example.org/mrn\", \"value\": \"postman-1\" }],\n  \"name\": [{ \"family\": \"Test\", \"given\": [\"Postman\"] }],\n  \"gender\": \"unknown\",\n  \"birthDate\": \"1995-01-01\"\n}"
+            },
+            "url": "{{baseUrl}}/fhir/Patient"
+          }
+        },
+        {
+          "name": "GET Patient search",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{apiKey}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/fhir+json"
+              }
+            ],
+            "url": "{{baseUrl}}/fhir/Patient?_count=10"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SMART discovery",
+      "item": [
+        {
+          "name": "GET /.well-known/smart-configuration",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/.well-known/smart-configuration"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Internal",
+      "item": [
+        {
+          "name": "GET /internal/v1/api-keys",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/internal/v1/api-keys"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,431 @@
+openapi: 3.0.3
+info:
+  title: FHIR Hub Partner API (subset)
+  description: |
+    Partner-facing surface for the interoperability hub: FHIR R4 JSON (`/fhir`),
+    SMART/OAuth discovery + token (`/.well-known/*`, `/oauth/*`), and tenant
+    integration APIs (`/internal/v1/*`). Paths reflect Phase 1 resource types;
+    extend enums when capabilities grow.
+  version: "0.1.0"
+
+servers:
+  - url: "{baseUrl}"
+    variables:
+      baseUrl:
+        default: http://127.0.0.1:3000
+
+tags:
+  - name: System
+  - name: FHIR
+  - name: SMART / OAuth
+  - name: Internal
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Liveness
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /ready:
+    get:
+      tags: [System]
+      summary: Readiness (database, optional read replica)
+      security: []
+      responses:
+        "200":
+          description: Ready
+        "503":
+          description: Not ready
+
+  /fhir/metadata:
+    get:
+      tags: [FHIR]
+      summary: CapabilityStatement
+      security: []
+      responses:
+        "200":
+          description: FHIR CapabilityStatement
+          content:
+            application/fhir+json:
+              schema:
+                type: object
+
+  /fhir/{resourceType}:
+    security:
+      - bearerAuth: []
+    parameters:
+      - name: resourceType
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+            - Patient
+            - Observation
+            - Condition
+            - Encounter
+            - DocumentReference
+            - Consent
+            - Provenance
+    get:
+      tags: [FHIR]
+      summary: Type-level search
+      parameters:
+        - name: _count
+          in: query
+          schema: { type: integer }
+        - name: _offset
+          in: query
+          schema: { type: integer }
+        - name: patient
+          in: query
+          description: Patient logical id (non-Patient types)
+          schema: { type: string }
+      responses:
+        "200":
+          description: Search bundle
+          content:
+            application/fhir+json:
+              schema:
+                type: object
+    post:
+      tags: [FHIR]
+      summary: Create resource
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Invalid
+
+  /fhir/{resourceType}/{id}:
+    security:
+      - bearerAuth: []
+    parameters:
+      - name: resourceType
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+            - Patient
+            - Observation
+            - Condition
+            - Encounter
+            - DocumentReference
+            - Consent
+            - Provenance
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [FHIR]
+      summary: Read instance
+      responses:
+        "200":
+          description: Resource
+        "404":
+          description: Not found
+    put:
+      tags: [FHIR]
+      summary: Update instance
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+    delete:
+      tags: [FHIR]
+      summary: Soft-delete instance
+      responses:
+        "204":
+          description: Deleted
+
+  /.well-known/smart-configuration:
+    get:
+      tags: [SMART / OAuth]
+      summary: SMART discovery
+      security: []
+      responses:
+        "200":
+          description: SMART configuration JSON
+
+  /.well-known/openid-configuration:
+    get:
+      tags: [SMART / OAuth]
+      summary: OpenID Provider metadata
+      security: []
+      responses:
+        "200":
+          description: OIDC discovery JSON
+
+  /.well-known/jwks.json:
+    get:
+      tags: [SMART / OAuth]
+      summary: JWKS (when JWT signing enabled)
+      security: []
+      responses:
+        "200":
+          description: JWK set
+
+  /oauth/authorize:
+    get:
+      tags: [SMART / OAuth]
+      summary: Authorization endpoint (browser redirect)
+      security: []
+      responses:
+        "302":
+          description: Redirect
+        "400":
+          description: Invalid request
+
+  /oauth/token:
+    post:
+      tags: [SMART / OAuth]
+      summary: Token endpoint
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                grant_type: { type: string }
+                client_id: { type: string }
+                client_secret: { type: string }
+                code: { type: string }
+                redirect_uri: { type: string }
+                refresh_token: { type: string }
+      responses:
+        "200":
+          description: Token response
+        "401":
+          description: Unauthorized
+
+  /internal/v1/api-keys:
+    security:
+      - bearerAuth: []
+    get:
+      tags: [Internal]
+      summary: List API keys (metadata only)
+      responses:
+        "200":
+          description: Key list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+                    items: { type: object }
+    post:
+      tags: [Internal]
+      summary: Create API key
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: { type: string }
+      responses:
+        "201":
+          description: Created (plaintext key returned once)
+
+  /internal/v1/api-keys/{keyId}:
+    security:
+      - bearerAuth: []
+    parameters:
+      - name: keyId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Internal]
+      summary: Revoke API key
+      responses:
+        "204":
+          description: Revoked
+
+  /internal/v1/usage/summary:
+    security:
+      - bearerAuth: []
+    get:
+      tags: [Internal]
+      summary: Tenant usage summary (audit rollup + metering pointers)
+      parameters:
+        - name: hours
+          in: query
+          description: Lookback window in hours (1–168, default 24)
+          schema: { type: integer, minimum: 1, maximum: 168 }
+      responses:
+        "200":
+          description: Usage summary JSON
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenantExternalKey: { type: string }
+                  periodHours: { type: integer }
+                  auditEventsInPeriod: { type: integer }
+                  auditEventsByAction:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        action: { type: string }
+                        count: { type: integer }
+                  metering:
+                    type: object
+
+  /internal/v1/mpi/patient-duplicate-candidates:
+    security:
+      - bearerAuth: []
+    get:
+      tags: [Internal]
+      summary: Deterministic duplicate groups (identifier)
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Groups
+
+  /internal/v1/mpi/patient-probabilistic-candidates:
+    security:
+      - bearerAuth: []
+    get:
+      tags: [Internal]
+      summary: Probabilistic duplicate candidates
+      parameters:
+        - name: minScore
+          in: query
+          schema: { type: number }
+        - name: maxPairs
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Scored pairs
+
+  /internal/v1/mpi/patient-match-score:
+    security:
+      - bearerAuth: []
+    post:
+      tags: [Internal]
+      summary: Score two Patients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [patientLogicalIdA, patientLogicalIdB]
+              properties:
+                patientLogicalIdA: { type: string }
+                patientLogicalIdB: { type: string }
+      responses:
+        "200":
+          description: Score breakdown
+
+  /internal/v1/mpi/patient-merge:
+    security:
+      - bearerAuth: []
+    post:
+      tags: [Internal]
+      summary: Merge duplicate Patient (Provenance + optional rewrite)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [survivorPatientLogicalId, duplicatePatientLogicalId]
+              properties:
+                survivorPatientLogicalId: { type: string }
+                duplicatePatientLogicalId: { type: string }
+                rewriteReferences: { type: boolean }
+                softDeleteDuplicate: { type: boolean }
+      responses:
+        "200":
+          description: Merge result
+
+  /internal/v1/mpi/patient-links:
+    security:
+      - bearerAuth: []
+    get:
+      tags: [Internal]
+      summary: List MPI links
+      responses:
+        "200":
+          description: Links
+    post:
+      tags: [Internal]
+      summary: Create MPI link edge
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+
+  /internal/v1/mpi/fhir-resources/{resourceType}/{logicalId}/restore:
+    security:
+      - bearerAuth: []
+    parameters:
+      - name: resourceType
+        in: path
+        required: true
+        schema: { type: string }
+      - name: logicalId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Internal]
+      summary: Restore soft-deleted FHIR resource
+      responses:
+        "204":
+          description: Restored
+
+  /internal/metrics:
+    get:
+      tags: [System]
+      summary: Prometheus metrics (optional bearer token)
+      security: []
+      parameters:
+        - name: Authorization
+          in: header
+          schema: { type: string }
+      responses:
+        "200":
+          description: text/plain metrics
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API key or SMART access token

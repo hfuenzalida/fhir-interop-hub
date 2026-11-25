@@ -1,0 +1,27 @@
+name: Dependency audit
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: audit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: npm audit (hub-api workspace)
+        run: npm run audit:deps -w @fhir-hub/hub-api

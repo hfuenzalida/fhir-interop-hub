@@ -1,0 +1,52 @@
+# Example Prometheus alerting rules for hub-api metrics.
+# Copy into your Prometheus config (or Prometheus Operator PrometheusRule) and TUNE thresholds.
+# Metrics come from GET /internal/metrics — see docs/prometheus/SCRAPING_INTERNAL_METRICS.md
+#
+# Recording rules are optional; many teams prefer Grafana alerts on the same queries.
+
+groups:
+  - name: hub-api
+    interval: 30s
+    rules:
+      # --- Availability / errors ---
+      - alert: HubApiHigh5xxRate
+        expr: |
+          sum(rate(hub_http_requests_total{status_family="5xx"}[5m]))
+            /
+          sum(rate(hub_http_requests_total[5m]))
+            > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "hub-api 5xx share above 5% (5m)"
+          description: "Raise when sustained server errors exceed policy; check DB, OAuth, deploy."
+
+      - alert: HubApi5xxBurst
+        expr: sum(rate(hub_http_requests_total{status_family="5xx"}[2m])) > 5
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "hub-api elevated 5xx request rate"
+          description: "Absolute 5xx/sec threshold — tune for your traffic."
+
+      # --- Pool saturation ---
+      - alert: HubPgPoolWaiting
+        expr: sum(hub_pg_pool_connections{state="waiting"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Postgres pool has waiting clients"
+          description: "Connections waiting for pool slot — scale instances or raise PG_POOL_MAX / DB max_connections carefully."
+
+      # --- Instance scrape / process ---
+      # Requires blackbox or kube metrics for 'up'; placeholder pattern:
+      # - alert: HubMetricsTargetDown
+      #   expr: up{job="hub-api-internal-metrics"} == 0
+      #   for: 2m
+      #   labels:
+      #     severity: critical
+      #   annotations:
+      #     summary: "Cannot scrape hub /internal/metrics"
