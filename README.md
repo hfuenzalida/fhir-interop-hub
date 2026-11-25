@@ -1,6 +1,10 @@
 # FHIR Interoperability Hub
 
-**FHIR R4 data hub + SMART on FHIR** beachhead designed to sit **adjacent to incumbent EHRs**, not replace them. Monorepo packages: shared IG types, TypeScript partner client, and **hub-api** with JSON REST at `/fhir`, tenant-scoped API keys, SQL migrations, and audit/WORM events.
+## Business case
+
+Health systems and digital health vendors cannot afford a full **EHR rip-and-replace** for every innovation, yet regulators and buyers expect **FHIR-native exchange**, SMART apps, and **auditable access** to clinical data. The gap is a **controlled hub** where new apps ingest, read, and extend data without becoming the system of record for the entire hospital.
+
+This hub is deliberately a **beachhead**: FHIR R4 JSON APIs, tenant-scoped keys, SQL migrations, WORM-style audit events, and paths toward OAuth/SMART and commercial metering ([docs/GAP10_COMMERCIAL.md](docs/GAP10_COMMERCIAL.md))—sitting **next to** incumbent EHRs, not claiming to replace them. **Intent:** give partners and integrators a **credible interoperability product skeleton** (shared types, hub client, hub-api) they can deploy and extend, with phased gaps documented for testing, production delivery, and GTM.
 
 **Stack:** Node.js 22+ · TypeScript · Fastify · PostgreSQL · Docker  
 **License:** [MIT](LICENSE)  
