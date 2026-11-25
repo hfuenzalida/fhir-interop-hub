@@ -1,4 +1,22 @@
-# FHIR interoperability hub (Phase 1–7)
+# FHIR Interoperability Hub
+
+**FHIR R4 data hub + SMART on FHIR** beachhead designed to sit **adjacent to incumbent EHRs**, not replace them. Monorepo packages: shared IG types, TypeScript partner client, and **hub-api** with JSON REST at `/fhir`, tenant-scoped API keys, SQL migrations, and audit/WORM events.
+
+**Stack:** Node.js 22+ · TypeScript · Fastify · PostgreSQL · Docker  
+**License:** [MIT](LICENSE)  
+**Topics:** `fhir` · `healthcare` · `smart-on-fhir` · `interop` · `typescript` · `hl7`
+
+---
+
+## Request workflow
+
+<p align="center">
+  <img src="docs/workflows/fhir-request.svg" alt="SMART app or partner client through hub-api auth to PostgreSQL FHIR store and audit trail" width="880"/>
+</p>
+
+---
+
+## Product intent (phases 1–7)
 
 Beachhead: **FHIR data hub + SMART on FHIR apps** adjacent to incumbent EHRs. This repo holds shared types, audit taxonomy, and **hub-api** with a **FHIR R4 JSON** REST API (`/fhir`).
 
@@ -150,3 +168,15 @@ Same API key as `/fhir/*`:
 | `DELETE` | `/internal/v1/api-keys/:keyId` | Revoke key |
 
 See `docs/PHASE5.md`.
+
+---
+
+## Related portfolio repositories
+
+| Repository | Focus |
+|------------|--------|
+| [rag-retail-analyst](https://github.com/hfuenzalida/rag-retail-analyst) | RAG · analytics |
+| [security-suite-orchestrator](https://github.com/hfuenzalida/security-suite-orchestrator) | DevSecOps |
+| [digital-brain](https://github.com/hfuenzalida/digital-brain) | Founder business OS |
+| [ig-video-to-text](https://github.com/hfuenzalida/ig-video-to-text) | Local media ML |
+| [ai-3-layer-coder](https://github.com/hfuenzalida/ai-3-layer-coder) | AI cost routing |
